@@ -15,7 +15,7 @@ PHONE_EXPIRE = 2
 
 class UserConfirmation(models.Model):
     code = models.CharField(max_length=4)
-    user = models.OneToOneField('users.User', on_delete=models.CASCADE, related_name='verify_code')
+    user = models.OneToOneField("users.User", on_delete=models.CASCADE, related_name='verify_code')
     expiration_time = models.DateTimeField(null=True)
     is_confirmation = models.BooleanField(default=False)
 
@@ -29,28 +29,27 @@ class AbstractUserManager(UserManager):
         if not phone:
             raise ValueError("The given phone number must be set")
 
-        user = self.model(phone=phone, *extra_fields)
-        user.set_password(password)
-        user.save(using=self._db)
+        user = self.model(phone=phone, **extra_fields)
+        password.set_password(password)
+        user.save(self._db)
         return user
 
     def create_superuser(self, phone, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_active', True)
-        extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('auth_status', 'code_verified')
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_active", True)
+        extra_fields.setdefault("auth_status", "code_verified")
 
-        if extra_fields.setdefault('is_staff') is not True:
-            raise ValueError("Superuser must have is_staff=True.")
-        if extra_fields.setdefault('is_superuser') is not True:
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True")
+        if extra_fields.get("is_superuser") is not True:
             raise ValueError("Superuser must have is_superuser=True")
         return self._create_user(phone, password, **extra_fields)
 
     def create_user(self, phone, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', False)
-        extra_fields.setdefault('is_superuser', False)
+        extra_fields.setdefault("is_staff", False)
+        extra_fields.setdefault("is_superuser", False)
         return self._create_user(phone, password, **extra_fields)
-
 
 class User(AbstractUser, BaseModel):
     REQUIRED_FIELDS = []
@@ -65,7 +64,7 @@ class User(AbstractUser, BaseModel):
     phone = PhoneNumberField(unique=True, verbose_name=_("Phone"))
     auth_status = models.CharField(max_length=20, choices=AUTH_STATUS, default=NEW, verbose_name=_("Auth status"))
     objects = UserManager()
-    USERNAME_FIELD = 'phone'
+    USERNAME_FIELD = "phone"
 
     class Meta:
         verbose_name = _("User")
@@ -73,13 +72,13 @@ class User(AbstractUser, BaseModel):
     def __str__(self):
         return f"{self.phone} || {self.first_name}"
 
-    def create_code_verify(self):
+    def create_verify_code(self):
         code = "".join(str(random.randint(0, 100)%10) for _ in range(4))
-        if hasattr(self, 'verify_code'):
+        if hasattr(self, "verify_code"):
             user_confirmation = self.verify_code
             user_confirmation.code = code
-            user_confirmation.is_confirmed = False
             user_confirmation.expiration_time = timezone.now() + timedelta(minutes=PHONE_EXPIRE)
+            user_confirmation.is_confirmation = False
             user_confirmation.save()
         else:
             UserConfirmation.objects.create(user=self, code=code)
@@ -91,11 +90,3 @@ class User(AbstractUser, BaseModel):
             "refresh": str(refresh),
             "access": str(refresh.access_token),
         }
-
-
-def __str__(self):
-    return f"{self.name}"
-
-Permission.__str__  = __str__
-
-
