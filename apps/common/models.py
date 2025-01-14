@@ -67,3 +67,23 @@ class Product(BaseModel):
     @property
     def first_image(self):
         return self.galleries.first().image
+
+
+class Gallery(BaseModel):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='galleries', verbose_name=_("Product"))
+    image = models.ImageField(upload_to="gallery/", verbose_name=_("Image"))
+
+    class Meta:
+        verbose_name = _("Gallery")
+        verbose_name_plural = _("Galleries")
+
+
+class ProductCharacteristics(BaseModel):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="characteristics",
+                                verbose_name=_(Product))
+    title = models.CharField(max_length=255, verbose_name=_("Title"))
+    value = models.CharField(max_length=255, verbose_name=_("Value"))
+
+    class Meta:
+        verbose_name = _("Product Characteristic")
+        verbose_name_plural = _("ProductCharacteristics")
