@@ -68,6 +68,9 @@ class Product(BaseModel):
     def first_image(self):
         return self.galleries.first().image
 
+    def __str__(self):
+        return self.title
+
 
 class Gallery(BaseModel):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='galleries', verbose_name=_("Product"))
@@ -87,3 +90,26 @@ class ProductCharacteristics(BaseModel):
     class Meta:
         verbose_name = _("Product Characteristic")
         verbose_name_plural = _("ProductCharacteristics")
+
+
+
+class Banner(BaseModel):
+    class BannerYtps(models.TextChoices):
+        BANNER = 'banner', _('Banner')
+        ADVERTISING = 'advertising', _('Advertising')
+
+    title = models.CharField(max_length=255, null=True, verbose_name=_("Title"))
+    image = models.ImageField(upload_to="banner/", verbose_name=_("Image"))
+    url = models.URLField(null=True, blank=True, verbose_name=_("Banner URL"))
+    oder = models.PositiveIntegerField(default=0, verbose_name=_("Order"))
+    description = models.TextField(null=True, blank=True, verbose_name=_("Description"))
+    banner_type = models.CharField(choices=BannerYtps.choices, default=BannerYtps.BANNER,
+                                   max_length=40, verbose_name=_("Banner Type"))
+
+    class Meta:
+        verbose_name = _("Banner")
+        verbose_name_plural = _("Banners")
+        ordering = ('order', )
+
+    def __str__(self):
+        return self.title
