@@ -7,9 +7,9 @@ from .generator import BothHttpAndHttpsSchemaGenerator
 
 schema_view = get_schema_view(
     openapi.Info(
-        title="SOFF HUB API ",
+        title="Technique Backend API ",
         default_version="v1",
-        description="SOFF TEAM BOILERPLATE",
+        description="TECHNIQUE TEAM BOILERPLATE",
         terms_of_service="https://www.google.com/policies/terms/",
         license=openapi.License(name="BSD License"),
     ),

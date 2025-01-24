@@ -1,8 +1,6 @@
 import random
 from django.db import models
 from datetime import timedelta
-
-from django.db.models.fields import return_None
 from django.utils import timezone
 from apps.common.models import BaseModel
 from django.utils.translation import gettext_lazy as _
