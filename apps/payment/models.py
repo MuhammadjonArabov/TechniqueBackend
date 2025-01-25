@@ -1,10 +1,12 @@
 from django.db import models
-from phonenumber_field.serializerfields import PhoneNumberField
-
+from django.conf import settings
+from django.db.models import Sum
 from .utils import check_quantity
 from apps.common.models import BaseModel
 from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ValidationError
+from phonenumber_field.serializerfields import PhoneNumberField
 
 phone_validator = RegexValidator(
     regex=r"^\+998\d{9}$", message=_("Phone number don't match"), code='invalid'
@@ -79,3 +81,70 @@ class Order(BaseModel):
 
     def __str__(self):
         return f"{dict(self.OrderType.choices)[self.order_type]} || {self.id}"
+
+    def clean(self):
+        if self.pk:
+            old_order = Order.objects.get(pk=self.pk)
+            if self.status == 'approved' != old_order.status and not check_quantity(self):
+                raise ValidationError(_('There is a shortage of products in the warehouse'))
+
+    @property
+    def amounts(self):
+        amount = self.product_orders.aggregate(Sum('amount'))['amount__sum'] or 0
+        return {
+            "product_amount": amount,
+            "shipping_amount": self.total_amount - amount
+        }
+
+    @property
+    def status_ln(self):
+        status_choice = dict(Order.OrderStatus.choices)
+        return status_choice[self.status]
+
+    @property
+    def order_type_ln(self):
+        order_type_ls = dict(Order.OrderType.choices)
+        return order_type_ls[self.order_type]
+
+    @property
+    def process_ln(self):
+        process_choice = dict(Order.ProcessStatus.choices)
+        return process_choice[self.process]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old_order = Order.objects.get(pk=self.pk)
+            if self.status == 'approved' and old_order.status != 'approved':
+                for product_count in self.product_orders.all().select_related('product'):
+                    product_count.product.quantity -= product_count.quantity
+                    product_count.product.save()
+        super().save(*args, **kwargs)
+
+
+class ProductCountOrder(BaseModel):
+    quantity = models.PositiveIntegerField(verbose_name=_("Quantity"))
+    amount = models.PositiveIntegerField(verbose_name=_("Amount"))
+    product = models.ForeignKey('common.Product', on_delete=models.PROTECT, related_name='product_orders',
+                                verbose_name=_("Product"))
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name='product_orders', verbose_name=_("Order"))
+
+    class Meta:
+        verbose_name = _("Product count order")
+        verbose_name_plural = _("Product count orders")
+
+    @property
+    def price(self):
+        return self.amount / self.quantity
+
+
+class ApplicationForMoreProduct(BaseModel):
+    quantity = models.PositiveIntegerField(verbose_name=_("quantity"))
+    phone_number = models.CharField(max_length=20, verbose_name=_("Phone number"))
+    customer_name = models.CharField(max_length=255, verbose_name=_("Customer Name"))
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='applications')
+    products = models.ForeignKey('common.Product', on_delete=models.PROTECT, related_name='applications',
+                                 verbose_name=_("Product"))
+
+    class Meta:
+        verbose_name = _("Application for product")
+        verbose_name_plural = _("Application for products")
