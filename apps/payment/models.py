@@ -2,11 +2,15 @@ from django.db import models
 from django.conf import settings
 from django.db.models import Sum
 from .utils import check_quantity
+from django.dispatch import receiver
 from apps.common.models import BaseModel
 from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
+from django.db.models.signals import post_migrate, pre_save
 from phonenumber_field.serializerfields import PhoneNumberField
+
+
 
 phone_validator = RegexValidator(
     regex=r"^\+998\d{9}$", message=_("Phone number don't match"), code='invalid'
@@ -148,3 +152,38 @@ class ApplicationForMoreProduct(BaseModel):
     class Meta:
         verbose_name = _("Application for product")
         verbose_name_plural = _("Application for products")
+
+
+class Settings(BaseModel):
+    shipping_cost = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        default=0, verbose_name=_('Shipping cost in USD'),
+        help_text=_('The shipping cost is the amount charged to deliver the order in USD')
+    )
+    minute = models.PositiveIntegerField(
+        default=0, verbose_name=_('Minute'),
+        help_text=_('This is to show users who have logged in in the last few minutes')
+    )
+    usd_to_uzs_rate = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        verbose_name=_('USD to UZS Exchange Rate'),
+        help_text=_('Exchange rate from USD to UZS'),
+    )
+    last_updated = models.DateTimeField(
+        auto_now=True, verbose_name=_('Last Updated'),
+        help_text=_('The date and time when the exchange rate was last updated')
+    )
+
+    def __str__(self):
+        return str(_('Settings for site configuration'))
+
+    class Meta:
+        verbose_name = _('Settings')
+        verbose_name_plural = _('Settings')
+
+
+@receiver(post_migrate)
+def my_post_migrate_handler(sender, **kwargs):
+    if not Settings.objects.all().exists():
+        Settings.objects.create()
+
