@@ -6,3 +6,10 @@ django-jazzmin
 drf-yasg
 djangorestframework
 django-filter
+celery
+redis
+pika
+django-celery-beat  # Vaqtli ishlar uchun
+transliterate
+django-ckeditor
+Pillow

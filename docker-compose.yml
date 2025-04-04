@@ -10,15 +10,17 @@ services:
     container_name: ${PROJECT_NAME}_web
     depends_on:
       - db
+      - redis
     build: .
     volumes:
       - .:/app/
       - static_data:/app/static/
       - media_data:/app/media/
+      - ./staticfiles:/app/staticfiles
     env_file: .env
-    command: python manage.py runserver
+    command: python manage.py runserver 0.0.0.0:${PORT}
     ports:
-      - ${PORT}:${PORT}
+      - "${PORT}:${PORT}"
     restart: always
 
   db:
@@ -37,5 +39,21 @@ services:
 
   redis:
     container_name: ${PROJECT_NAME}_redis
-    image: redis:5.0
+    image: redis:6
     restart: always
+
+  rabbitmq:
+    image: rabbitmq:3.8
+    container_name: ${PROJECT_NAME}_rabbitmq
+    restart: always
+
+  celery:
+    build: .
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - rabbitmq
+      - redis
+    env_file:
+      - ./.env

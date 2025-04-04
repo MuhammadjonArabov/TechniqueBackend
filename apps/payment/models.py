@@ -7,15 +7,12 @@ from apps.common.models import BaseModel
 from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
-from django.db.models.signals import post_migrate, pre_save
-from phonenumber_field.serializerfields import PhoneNumberField
-
-
+from django.db.models.signals import post_migrate
+from phonenumber_field.modelfields import PhoneNumberField
 
 phone_validator = RegexValidator(
-    regex=r"^\+998\d{9}$", message=_("Phone number don't match"), code='invalid'
+    regex=r"^\+998\d{9}$", message=_("Phone number doesn't match"), code='invalid'
 )
-
 
 class Branch(BaseModel):
     name = models.CharField(max_length=255, verbose_name=_("Branch Name"))
@@ -23,13 +20,8 @@ class Branch(BaseModel):
     longitude = models.FloatField(verbose_name=_("Longitude"), null=True, blank=True)
     latitude = models.FloatField(verbose_name=_("Latitude"), null=True, blank=True)
     location = models.URLField(max_length=300000, verbose_name=_("Location URL"), null=True)
-    support_phone = models.CharField(max_length=255, verbose_name=_("Support Phone"), validators=[phone_validator],
-                                     null=True)
+    support_phone = models.CharField(max_length=255, verbose_name=_("Support Phone"), validators=[phone_validator], null=True)
     archive = models.BooleanField(default=False, verbose_name=_("Archive"))
-
-    @property
-    def value(self):
-        return str(self.pk)
 
     class Meta:
         verbose_name = _("Branch")
@@ -40,21 +32,21 @@ class Branch(BaseModel):
 
 
 class Order(BaseModel):
-    class OrderStatus(models.TextField):
+    class OrderStatus(models.TextChoices):
         PENDING = 'pending', _('Pending')
         APPROVED = 'approved', _('Approved')
         CANCELLED = 'cancelled', _('Cancelled')
 
-    class ProcessStatus(models.TextField):
+    class ProcessStatus(models.TextChoices):
         NEW = 'new', _('New')
         IN_COURIER = 'in_courier', _('In courier')
         DELIVERED = 'delivered', _('Delivered')
 
-    class OrderType(models.TextField):
+    class OrderType(models.TextChoices):
         DELIVERY = 'delivery', _('Delivery')
         TAKE_AWAY = 'take_away', _('Take away')
 
-    class ProviderType(models.TextField):
+    class ProviderType(models.TextChoices):
         CLICK = 'click', _('Click')
         PAYME = 'payme', _('Payme')
         PAYZE = 'payze', _('Payze')
@@ -68,16 +60,11 @@ class Order(BaseModel):
     longitude = models.FloatField(verbose_name=_("Longitude"), null=True, blank=True)
     latitude = models.FloatField(verbose_name=_("Latitude"), null=True, blank=True)
     user = models.ForeignKey('users.User', on_delete=models.PROTECT, related_name='orders', verbose_name=_("User"))
-    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='orders', verbose_name=_("Branch"),
-                               null=True)
-    status = models.CharField(max_length=255, choices=OrderStatus.choices, default=OrderType.DELIVERY,
-                              verbose_name=_("Status"))
-    order_type = models.CharField(max_length=255, choices=OrderType.choices, default=OrderType.DELIVERY,
-                                  verbose_name=_("Order Type"))
-    process = models.CharField(max_length=255, choices=ProcessStatus.choices, default=ProcessStatus.NEW,
-                               verbose_name=_("Process Type"))
-    provider = models.CharField(max_length=255, choices=ProviderType.choices, default=ProviderType.CASH,
-                                verbose_name=_("Provider Type"))
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='orders', verbose_name=_("Branch"), null=True)
+    status = models.CharField(max_length=255, choices=OrderStatus.choices, default=OrderStatus.DELIVERY, verbose_name=_("Status"))
+    order_type = models.CharField(max_length=255, choices=OrderType.choices, default=OrderType.DELIVERY, verbose_name=_("Order Type"))
+    process = models.CharField(max_length=255, choices=ProcessStatus.choices, default=ProcessStatus.NEW, verbose_name=_("Process Type"))
+    provider = models.CharField(max_length=255, choices=ProviderType.choices, default=ProviderType.CASH, verbose_name=_("Provider Type"))
 
     class Meta:
         verbose_name = _("Order")
@@ -89,7 +76,7 @@ class Order(BaseModel):
     def clean(self):
         if self.pk:
             old_order = Order.objects.get(pk=self.pk)
-            if self.status == 'approved' != old_order.status and not check_quantity(self):
+            if self.status == OrderStatus.APPROVED and old_order.status != OrderStatus.APPROVED and not check_quantity(self):
                 raise ValidationError(_('There is a shortage of products in the warehouse'))
 
     @property
@@ -102,23 +89,20 @@ class Order(BaseModel):
 
     @property
     def status_ln(self):
-        status_choice = dict(Order.OrderStatus.choices)
-        return status_choice[self.status]
+        return self.get_status_display()
 
     @property
     def order_type_ln(self):
-        order_type_ls = dict(Order.OrderType.choices)
-        return order_type_ls[self.order_type]
+        return self.get_order_type_display()
 
     @property
     def process_ln(self):
-        process_choice = dict(Order.ProcessStatus.choices)
-        return process_choice[self.process]
+        return self.get_process_display()
 
     def save(self, *args, **kwargs):
         if self.pk:
             old_order = Order.objects.get(pk=self.pk)
-            if self.status == 'approved' and old_order.status != 'approved':
+            if self.status == OrderStatus.APPROVED and old_order.status != OrderStatus.APPROVED:
                 for product_count in self.product_orders.all().select_related('product'):
                     product_count.product.quantity -= product_count.quantity
                     product_count.product.save()
@@ -128,8 +112,7 @@ class Order(BaseModel):
 class ProductCountOrder(BaseModel):
     quantity = models.PositiveIntegerField(verbose_name=_("Quantity"))
     amount = models.PositiveIntegerField(verbose_name=_("Amount"))
-    product = models.ForeignKey('common.Product', on_delete=models.PROTECT, related_name='product_orders',
-                                verbose_name=_("Product"))
+    product = models.ForeignKey('common.Product', on_delete=models.PROTECT, related_name='product_orders', verbose_name=_("Product"))
     order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name='product_orders', verbose_name=_("Order"))
 
     class Meta:
@@ -142,12 +125,11 @@ class ProductCountOrder(BaseModel):
 
 
 class ApplicationForMoreProduct(BaseModel):
-    quantity = models.PositiveIntegerField(verbose_name=_("quantity"))
+    quantity = models.PositiveIntegerField(verbose_name=_("Quantity"))
     phone_number = models.CharField(max_length=20, verbose_name=_("Phone number"))
     customer_name = models.CharField(max_length=255, verbose_name=_("Customer Name"))
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='applications')
-    products = models.ForeignKey('common.Product', on_delete=models.PROTECT, related_name='applications',
-                                 verbose_name=_("Product"))
+    products = models.ForeignKey('common.Product', on_delete=models.PROTECT, related_name='applications', verbose_name=_("Product"))
 
     class Meta:
         verbose_name = _("Application for product")
@@ -162,7 +144,7 @@ class Settings(BaseModel):
     )
     minute = models.PositiveIntegerField(
         default=0, verbose_name=_('Minute'),
-        help_text=_('This is to show users who have logged in in the last few minutes')
+        help_text=_('This shows users who have logged in in the last few minutes')
     )
     usd_to_uzs_rate = models.DecimalField(
         max_digits=12, decimal_places=2,
@@ -184,6 +166,5 @@ class Settings(BaseModel):
 
 @receiver(post_migrate)
 def my_post_migrate_handler(sender, **kwargs):
-    if not Settings.objects.all().exists():
+    if not Settings.objects.exists():
         Settings.objects.create()
-

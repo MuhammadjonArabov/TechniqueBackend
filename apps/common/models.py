@@ -41,14 +41,13 @@ class Category(models.Model):
 
 class Product(BaseModel):
     title = models.CharField(max_length=255, db_index=True, verbose_name=_("Title"))
-    price = models.DecimalField(max_digits=100, decimal_places=2, max_length=2, verbose_name=_("Price"))
-    price_uzs = models.DecimalField(max_digits=100, decimal_places=2, max_length=2, null=True,
-                                    verbose_name=_("Price in UZS"))
+    price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name=_("Price"))
+    price_uzs = models.DecimalField(max_digits=10, decimal_places=2, null=True, verbose_name=_("Price in UZS"))
     discount = models.PositiveIntegerField(default=0, verbose_name=_("Discount"))
     description = models.TextField(null=True, blank=True, verbose_name=_("Description"))
     view_count = models.PositiveIntegerField(default=0, verbose_name=_("View Count"))
     video_url = models.URLField(default='image.jfif', null=True, blank=True, verbose_name=_("Video Url"))
-    body = RichTextUploadingField(default='good', verbose_name=_("Body"))
+    body = RichTextUploadingField(default=_("good"), verbose_name=_("Body"))
     on_sale = models.BooleanField(default=True, verbose_name=_("On Sale"))
     is_many = models.BooleanField(default=True, verbose_name=_("Can you sell more?"))
     slug = models.SlugField(unique=True, verbose_name=_("Slug"))
@@ -65,7 +64,7 @@ class Product(BaseModel):
 
     @property
     def first_image(self):
-        return self.galleries.first().image
+        return self.galleries.first().image if self.galleries.exists() else None
 
     def __str__(self):
         return self.title
@@ -82,13 +81,13 @@ class Gallery(BaseModel):
 
 class ProductCharacteristics(BaseModel):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="characteristics",
-                                verbose_name=_(Product))
+                                verbose_name=_("Product"))
     title = models.CharField(max_length=255, verbose_name=_("Title"))
     value = models.CharField(max_length=255, verbose_name=_("Value"))
 
     class Meta:
         verbose_name = _("Product Characteristic")
-        verbose_name_plural = _("ProductCharacteristics")
+        verbose_name_plural = _("Product Characteristics")
 
 
 class Banner(BaseModel):
@@ -135,7 +134,7 @@ class Section(BaseModel):
                                       limit_choices_to={'on_sale': True, 'quantity__gt': 0}, blank=True)
 
     def save(self, *args, **kwargs):
-        count = self.__class__.objects.all().count
+        count = self.__class__.objects.all().count()
         self.code = f"section_{count + 1}"
         super(Section, self).save(*args, **kwargs)
 
@@ -155,12 +154,12 @@ class Contact(BaseModel):
 
 
 class Country(BaseModel):
-    country_nme = models.CharField(max_length=255, verbose_name=_("Country Name"))
+    country_name = models.CharField(max_length=255, verbose_name=_("Country Name"))
     region = models.CharField(max_length=255, verbose_name=_("Region"))
 
 
 class OnlineUser(BaseModel):
-    ip_address = models.GenericIPAddressField(max_length=255, verbose_name=_("IP Address"), null=True, blank=True)
+    ip_address = models.GenericIPAddressField(verbose_name=_("IP Address"), null=True, blank=True)
     country = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='online_users',
                                 verbose_name=_("Online User"), null=True, blank=True)
     uuid = models.CharField(max_length=255, verbose_name=_("UUID"), null=True)
@@ -169,7 +168,7 @@ class OnlineUser(BaseModel):
 
 
 @receiver(post_migrate)
-def my_post_migrate_handler(ender, **kwargs):
+def my_post_migrate_handler(sender, **kwargs):
     sections = Section.objects.all()
     if sections.count() < 4:
         sections.delete()
@@ -190,6 +189,6 @@ def post_delete_handler_banner(sender, instance, **kwargs):
 
 
 @receiver(post_delete, sender=Brand)
-def post_delete_handler(sender, instance, **kwargs):
+def post_delete_handler_brand(sender, instance, **kwargs):
     if os.path.exists(instance.image.path):
         os.remove(instance.image.path)
